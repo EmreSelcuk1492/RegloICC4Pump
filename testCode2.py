@@ -1,12 +1,7 @@
 import serial
 import time
 import keyboard
-import threading
-import time
-import keyboard
 import pumpTimer
-
-
 
 
 class TestSerialCommunication:
@@ -66,20 +61,25 @@ class TestSerialCommunication:
         self.send_receive("000000\x0D") # Sets pump to default settings
     """
 ### CALIBRATION CONTROLS ###
+
+            
     def setCalibration(self, pumpNumber, direction, volume, calTime):         
-        self.send_receive(f"{pumpNumber}xU{self._volume2(volume)}\x0D")  # Set the flow ramodete
-        self.send_receive(f"{pumpNumber}xW{self._time2(calTime)}\x0D")  # Set the flow rate mode
+        self.send_receive(f"{pumpNumber}xU{self._volume2(volume)}\x0D")  # Set the calibration volume
+        #calTime = [time, units of Time] 's' = seconds, 'm' = minutes, 'h' = hours
+        self.send_receive(f"{pumpNumber}xW{self._time2(calTime[0], calTime[1])}\x0D")
         self.send_receive(f"{pumpNumber}xRJ\x0D")
         
     def startCalibration(self, pumpNumber):
         self.send_receive(f"{pumpNumber}xY\x0D")
     
     def setCalibrationMeasured(self, pumpNumber):
-        time.sleep(5)
-        while str(self.send_receive(f"{pumpNumber}E\x0D").decode()) != "-":
+        time.sleep(3)
+        while str(self.send_receive(f"{pumpNumber}E\x0D").decode()) != "-": #Checking if pump is done running
             time.sleep(1)
+        #Requesting user for mL measured for pump to calibrate to, 0.1 = 100 uL (micro-militers)
         print("Please enter your measured value in mL:")
         volume = input()
+        #Sets pump volume to input from user
         self.send_receive(f"{pumpNumber}xV{self._volume2(float(volume))}\x0D")
             
 ### ACTUATION CONTROLS ###
@@ -111,7 +111,7 @@ class TestSerialCommunication:
             number = 60 * number
         return str(min(number, 35964000)).replace('.', '')
 
-    def _time2(self, number, units='s'):
+    def _time2(self, number, units):
         """Convert number to 'time type 2'.
 
         8 digits, 0 to 35964000 in units of 0.1s, left-padded with zeroes
@@ -158,15 +158,21 @@ def main():
     test_comm = TestSerialCommunication(serial_port)
     test_comm.connect() 
     
-    #Direction - 0 = Clockwise, 1 = Counter-Clockwise
-    while keyboard.is_pressed('q') == False:
-        test_comm.setTubeDiameter("4", 0.38)
-        test_comm.setCalibration("4", 0, 0.2, 60)
-        test_comm.startCalibration("4")
-        test_comm.setCalibrationMeasured("4")
-        print("NEW CYCLE: Press enter to continue")
-        input()
+    
+    #Example Calibration Loop
+    userInput = ""
+    while userInput.capitalize() != 'Q':
+        test_comm.setTubeDiameter(4, 0.38) #Tube diameter at channel 4 to 0.38mL
+        test_comm.setCalibration(4, 0, 3, [2, 'h']) #Pump 4, clockwise = 0, 0.2mL in 60seconds
+        test_comm.startCalibration(4) #Start Pump 4 calibration
+        test_comm.setCalibrationMeasured(4) #Set Calibration Measured -> Looping function
+        print("NEW CYCLE: Press enter to continue or 'q' to quit")
+        userInput = input()
 
+    test_comm.disconnect()
+
+
+    #Example Running Loop with Pump Timer
     """""
     pump_timer = PumpTimer(30)
     print("Press 'q' to pause the timer.")
