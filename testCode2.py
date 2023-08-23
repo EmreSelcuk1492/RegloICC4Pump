@@ -4,37 +4,7 @@ import keyboard
 import threading
 import time
 import keyboard
-
-class PumpTimer(threading.Thread):
-    def __init__(self, run_time):
-        super().__init__()
-        self.run_time = run_time
-        self.running = True
-        self.paused = False
-
-    def run(self):
-        start_time = time.time()
-        while self.running:
-            if not self.paused:
-                current_time = time.time()
-                elapsed_time = current_time - start_time
-                if elapsed_time >= self.run_time:
-                    print("Pump time is up!")
-                    self.running = False
-                    print(f"Elapsed time: {elapsed_time:.2f} seconds")
-                    break
-            else:  # If paused, don't update the elapsed time
-                start_time = time.time() - elapsed_time  # Reset the start time to account for paused time
-                print(f"Pause time: {elapsed_time:.2f}")
-               
-            time.sleep(1) 
-
-
-    def pause(self):
-        self.paused = True
-
-    def resume(self):
-        self.paused = False
+import pumpTimer
 
 
 
@@ -48,7 +18,7 @@ class TestSerialCommunication:
 
     def connect(self):
         try:
-            self.ser = serial.Serial(self.serial_port, baudrate=9600, timeout=0.1)
+            self.ser = serial.Serial(self.serial_port, baudrate=9600, timeout=0.4)
             print("Serial connection established.")
         except serial.SerialException as e:
             print("Error:", e)
@@ -59,9 +29,10 @@ class TestSerialCommunication:
             return
         try:
             self.ser.write(command.encode('ASCII'))
-            response = self.ser.read_until(b'\x0D')
+            response = self.ser.read_until('\x0D')
             print("Sent command:", command)
             print("Received response:", response)
+            return response
         except serial.SerialException as e:
             print("Error:", e)
             
@@ -70,27 +41,47 @@ class TestSerialCommunication:
             self.ser.close()
             print("Serial connection closed.")
     
-            
-### Operational Modes and Settings ###
+### System Returns ###
 
-    def setPumpRPM(self, pumpNumber, direction, speed):
+        
+### Operational Modes and Settings ###
+    def setPumpDirection(self, pumpNumber, direction):
+        if direction == 0:
+            self.send_receive(f"{pumpNumber}J")
+        else:
+            self.send_receive(f"{pumpNumber}K")
+            
+    def setPumpRPM(self, pumpNumber, speed):
         self.send_receive(f"{pumpNumber}L\x0D")  # Set the flow rate
-        self.send_receive(f"{pumpNumber}{direction}\x0D")  # Set direction
         self.send_receive(f"{pumpNumber}S{self._discrete3(speed)}\x0D")  # Set speed
     
     def setTubeDiameter(self, pumpNumber, width):
         self.send_receive(f"{pumpNumber}+{self._discrete2(width)}\x0D") #Set tube diameter
         
-    
-    def setFlowRate(self, pumpNumber, direction, volume):
+    def setFlowRate(self, pumpNumber, volume):
         self.send_receive(f"{pumpNumber}M\x0D")  # Set the flow rate mode
-        self.send_receive(f"{pumpNumber}{direction}\x0D")  # Set direction
         self.send_receive(f"{pumpNumber}f{self._volume2(volume)}\x0D") # Set mL/min rate
     """"
     def resetCalibration(self):
         self.send_receive("000000\x0D") # Sets pump to default settings
     """
+### CALIBRATION CONTROLS ###
+    def setCalibration(self, pumpNumber, direction, volume, calTime):         
+        self.send_receive(f"{pumpNumber}xU{self._volume2(volume)}\x0D")  # Set the flow ramodete
+        self.send_receive(f"{pumpNumber}xW{self._time2(calTime)}\x0D")  # Set the flow rate mode
+        self.send_receive(f"{pumpNumber}xRJ\x0D")
         
+    def startCalibration(self, pumpNumber):
+        self.send_receive(f"{pumpNumber}xY\x0D")
+    
+    def setCalibrationMeasured(self, pumpNumber):
+        time.sleep(5)
+        while str(self.send_receive(f"{pumpNumber}E\x0D").decode()) != "-":
+            time.sleep(1)
+        print("Please enter your measured value in mL:")
+        volume = input()
+        self.send_receive(f"{pumpNumber}xV{self._volume2(float(volume))}\x0D")
+            
 ### ACTUATION CONTROLS ###
 
     def allPumpsOn(self):
@@ -137,7 +128,6 @@ class TestSerialCommunication:
         # convert number to "volume type 2"
         number = '%.3e' % abs(number)
         number = number[0] + number[2:5] + number[-3] + number[-1]
-        print(str(number))
         return str(number)
         
     def _volume1(self, number):
@@ -167,14 +157,23 @@ def main():
     serial_port = 'COM7'  # Replace with your pump's serial port
     test_comm = TestSerialCommunication(serial_port)
     test_comm.connect() 
-        
+    
+    #Direction - 0 = Clockwise, 1 = Counter-Clockwise
+    while keyboard.is_pressed('q') == False:
+        test_comm.setTubeDiameter("4", 0.38)
+        test_comm.setCalibration("4", 0, 0.2, 60)
+        test_comm.startCalibration("4")
+        test_comm.setCalibrationMeasured("4")
+        print("NEW CYCLE: Press enter to continue")
+        input()
+
+    """""
     pump_timer = PumpTimer(30)
     print("Press 'q' to pause the timer.")
-    pump_timer.start()
-    test_comm.setTubeDiameter("3", 0.38) #Setting channel 3 pump to a diameter of 0.013 mL
-    test_comm.setTubeDiameter("4", 0.38) #Setting channel 3 pump to a diameter of 0.013 mL
+    test_comm.setTubeDiameter("3", 0.38) #Setting channel 3 pump to a diameter of 0.13 mL
+    test_comm.setTubeDiameter("4", 0.38) #Setting channel 3 pump to a diameter of 0.13 mL
     test_comm.setFlowRate("3", "J", 0.35) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
-    test_comm.setFlowRate("4", "J", 0.3) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
+    test_comm.setFlowRate("4", "J", 1) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
     test_comm.allPumpsOn()
     
     while pump_timer.running:
@@ -189,23 +188,7 @@ def main():
     
     pump_timer.join()
     test_comm.allPumpsOff()
-        
-    """
-    test_comm.setPumpRPM("4", "J", 10)
-    """
-    """    test_comm.allPumpsOn()
-    time.sleep(2)
-    test_comm.allPumpsOff()
-    test_comm.setPumpRPM("4", "J", 50)
-    test_comm.allPumpsOn()q
-    time.sleep(4)
-    test_comm.allPumpsOff()
-    test_comm.setPumpRPM("4", "J", 100)
-    test_comm.allPumpsOn()
-    time.sleep(6)   
-    test_comm.allPumpsOff()
-    """
-
+"""
     
 if __name__ == "__main__":
     main()

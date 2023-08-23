@@ -44,7 +44,7 @@ class PumpControlGUI(QMainWindow):
 
     def connect(self):
         try:
-            self.ser = serial.Serial(self.serial_port, baudrate=9600, timeout=0.01)
+            self.ser = serial.Serial(self.serial_port, baudrate=9600, timeout=5)
             print("Serial connection established.")
         except serial.SerialException as e:
             print("Error:", e)
