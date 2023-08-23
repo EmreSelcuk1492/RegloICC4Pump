@@ -3,7 +3,6 @@ import time
 import keyboard
 import pumpTimer
 
-print("Emre is Cool")
 class TestSerialCommunication:
     def __init__(self, port):
         self.serial_port = port
