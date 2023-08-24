@@ -153,7 +153,7 @@ class TestSerialCommunication:
 
 def main():
 
-    serial_port = 'COM3'  # Replace with your pump's serial port
+    serial_port = 'COM7'  # Replace with your pump's serial port
     test_comm = TestSerialCommunication(serial_port)
     test_comm.connect() 
     
