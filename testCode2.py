@@ -1,7 +1,7 @@
 import serial
 import time
 import keyboard
-import pumpTimer
+from pumpTimer import PumpTimer
 
 class TestSerialCommunication:
     def __init__(self, port):
@@ -12,7 +12,7 @@ class TestSerialCommunication:
 
     def connect(self):
         try:
-            self.ser = serial.Serial(self.serial_port, baudrate=9600, timeout=0.4)
+            self.ser = serial.Serial(self.serial_port, baudrate=9600, timeout=0.1)
             print("Serial connection established.")
         except serial.SerialException as e:
             print("Error:", e)
@@ -41,9 +41,9 @@ class TestSerialCommunication:
 ### Operational Modes and Settings ###
     def setPumpDirection(self, pumpNumber, direction):
         if direction == 0:
-            self.send_receive(f"{pumpNumber}J")
+            self.send_receive(f"{pumpNumber}J\x0D")
         else:
-            self.send_receive(f"{pumpNumber}K")
+            self.send_receive(f"{pumpNumber}K\x0D")
             
     def setPumpRPM(self, pumpNumber, speed):
         self.send_receive(f"{pumpNumber}L\x0D")  # Set the flow rate
@@ -153,11 +153,11 @@ class TestSerialCommunication:
 
 def main():
 
-    serial_port = 'COM7'  # Replace with your pump's serial port
+    serial_port = 'COM3'  # Replace with your pump's serial port
     test_comm = TestSerialCommunication(serial_port)
     test_comm.connect() 
     
-    
+    """"
     #Example Calibration Loop
     userInput = ""
     while userInput.capitalize() != 'Q':
@@ -169,16 +169,19 @@ def main():
         userInput = input()
 
     test_comm.disconnect()
-
+    """
 
     #Example Running Loop with Pump Timer
-    """""
+    
     pump_timer = PumpTimer(30)
     print("Press 'q' to pause the timer.")
     test_comm.setTubeDiameter("3", 0.38) #Setting channel 3 pump to a diameter of 0.13 mL
     test_comm.setTubeDiameter("4", 0.38) #Setting channel 3 pump to a diameter of 0.13 mL
-    test_comm.setFlowRate("3", "J", 0.35) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
-    test_comm.setFlowRate("4", "J", 1) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
+    test_comm.setPumpDirection("3", 0)
+    test_comm.setPumpDirection("4", 1)
+    test_comm.setFlowRate("3", 0.35) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
+    test_comm.setFlowRate("4", 0.30) #Setting channel 3 to flow rate mode - RPM speed dependent on Tube Diameter
+    pump_timer.start()
     test_comm.allPumpsOn()
     
     while pump_timer.running:
@@ -193,7 +196,7 @@ def main():
     
     pump_timer.join()
     test_comm.allPumpsOff()
-"""
+
     
 if __name__ == "__main__":
     main()
